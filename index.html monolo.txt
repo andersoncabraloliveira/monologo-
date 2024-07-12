@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Monólogo Animado com Voz e Vídeo</title>
+    <style>
+        body {
+            font-family: 'Georgia', serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #1a1a2e;
+            padding: 20px;
+            box-sizing: border-box;
+            color: #fff;
+        }
+        .stage {
+            width: 100%;
+            max-width: 600px;
+            height: 400px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            position: relative;
+        }
+        .stage video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1;
+        }
+        .actor {
+            width: 100px;
+            height: 100px;
+            background-color: rgba(233, 69, 96, 0.8);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 48px;
+            color: white;
+            transition: all 0.5s ease;
+            position: absolute;
+            bottom: 20px;
+            z-index: 1;
+        }
+        .spotlight {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            transition: all 0.3s ease;
+            z-index: 2;
+        }
+        .monologue {
+            width: 100%;
+            max-width: 600px;
+            min-height: 100px;
+            background-color: rgba(15, 52, 96, 0.8);
+            border-radius: 10px;
+            padding: 20px;
+            font-size: 18px;
+            line-height: 1.6;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            overflow-y: auto;
+            max-height: 200px;
+            transition: all 0.3s ease;
+        }
+        .input-area {
+            width: 100%;
+            max-width: 600px;
+        }
+        #monologue-input {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            background-color: rgba(22, 33, 62, 0.8);
+            color: #fff;
+        }
+        #perform-button {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            background-color: #e94560;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        #perform-button:hover {
+            background-color: #ff6b6b;
+            transform: scale(1.05);
+        }
+        .voice-controls {
+            width: 100%;
+            max-width: 600px;
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .voice-controls select, .voice-controls input {
+            width: 48%;
+            padding: 5px;
+            font-size: 14px;
+            background-color: rgba(22, 33, 62, 0.8);
+            color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0px); }
+        }
+        @keyframes talk {
+            0%, 100% { transform: scaleY(1); }
+            50% { transform: scaleY(1.1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="stage">
+        <video autoplay loop muted playsinline>
+            <source src="/api/placeholder/600/400" type="video/mp4">
+            Seu navegador não suporta o elemento de vídeo.
+        </video>
+        <div class="spotlight"></div>
+        <div class="actor">🎭</div>
+    </div>
+    <div class="monologue" id="monologue-display"></div>
+    <div class="input-area">
+        <textarea id="monologue-input" rows="4" placeholder="Digite seu monólogo aqui..."></textarea>
+        <button id="perform-button">Realizar Monólogo</button>
+    </div>
+    <div class="voice-controls">
+        <select id="voice-select"></select>
+        <input type="range" id="rate" min="0.5" max="2" value="1" step="0.1">
+    </div>
+
+    <script>
+        const monologueInput = document.getElementById('monologue-input');
+        const monologueDisplay = document.getElementById('monologue-display');
+        const performButton = document.getElementById('perform-button');
+        const actor = document.querySelector('.actor');
+        const stage = document.querySelector('.stage');
+        const spotlight = document.querySelector('.spotlight');
+        const voiceSelect = document.getElementById('voice-select');
+        const rateInput = document.getElementById('rate');
+
+        let voices = [];
+
+        performButton.addEventListener('click', performMonologue);
+        stage.addEventListener('mousemove', moveSpotlight);
+
+        function populateVoiceList() {
+            voices = speechSynthesis.getVoices();
+            voiceSelect.innerHTML = '';
+            voices.forEach((voice, i) => {
+                const option = document.createElement('option');
+                option.textContent = `${voice.name} (${voice.lang})`;
+                option.setAttribute('data-lang', voice.lang);
+                option.setAttribute('data-name', voice.name);
+                voiceSelect.appendChild(option);
+            });
+        }
+
+        populateVoiceList();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = populateVoiceList;
+        }
+
+        function performMonologue() {
+            const text = monologueInput.value.trim();
+            if (text) {
+                monologueDisplay.innerHTML = '';
+                actor.style.animation = 'pulse 0.5s ease-in-out, float 3s ease-in-out infinite';
+                typeWriterWithVoice(text);
+            }
+        }
+
+        function typeWriterWithVoice(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            const selectedOption = voiceSelect.selectedOptions[0].getAttribute('data-name');
+            utterance.voice = voices.find(voice => voice.name === selectedOption);
+            utterance.rate = parseFloat(rateInput.value);
+
+            utterance.onboundary = (event) => {
+                if (event.name === 'word') {
+                    const word = text.slice(event.charIndex, event.charIndex + event.charLength);
+                    monologueDisplay.innerHTML += word + ' ';
+                    actor.style.animation = 'talk 0.3s ease-in-out infinite';
+                }
+            };
+
+            utterance.onend = () => {
+                actor.style.animation = 'float 3s ease-in-out infinite';
+            };
+
+            speechSynthesis.speak(utterance);
+        }
+
+        function moveSpotlight(e) {
+            const rect = stage.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            spotlight.style.left = `${x - 100}px`;
+            spotlight.style.top = `${y - 100}px`;
+        }
+
+        monologueInput.addEventListener('input', function() {
+            const hue = (this.value.length * 10) % 360;
+            performButton.style.backgroundColor = `hsl(${hue}, 70%, 60%)`;
+        });
+    </script>
+</body>
+</html>
